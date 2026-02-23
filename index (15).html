@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NexProxy — 高性能Webプロキシ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #050508;
+    --surface: #0d0d14;
+    --border: #1e1e2e;
+    --accent: #00ffcc;
+    --accent2: #7c3aed;
+    --text: #e0e0f0;
+    --muted: #6060a0;
+    --glow: 0 0 30px rgba(0,255,204,0.15);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  /* Animated grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,255,204,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,255,204,0.03) 1px, transparent 1px);
+    background-size: 60px 60px;
+    animation: gridMove 20s linear infinite;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Radial glow blob */
+  body::after {
+    content: '';
+    position: fixed;
+    top: -20%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 800px;
+    height: 600px;
+    background: radial-gradient(ellipse, rgba(124,58,237,0.12) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+    animation: blobPulse 8s ease-in-out infinite;
+  }
+
+  @keyframes gridMove {
+    0% { background-position: 0 0; }
+    100% { background-position: 60px 60px; }
+  }
+
+  @keyframes blobPulse {
+    0%, 100% { transform: translateX(-50%) scale(1); opacity: 1; }
+    50% { transform: translateX(-50%) scale(1.1); opacity: 0.7; }
+  }
+
+  /* ─── Layout ─── */
+  .wrapper {
+    position: relative;
+    z-index: 1;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+  }
+
+  /* ─── Header ─── */
+  header {
+    text-align: center;
+    margin-bottom: 3rem;
+    animation: fadeDown 0.8s ease both;
+  }
+
+  .logo-mark {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .logo-icon {
+    width: 48px;
+    height: 48px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 20px rgba(0,255,204,0.3);
+    animation: iconSpin 10s linear infinite;
+  }
+
+  @keyframes iconSpin {
+    0%, 100% { box-shadow: 0 0 20px rgba(0,255,204,0.3); }
+    50% { box-shadow: 0 0 35px rgba(124,58,237,0.4); }
+  }
+
+  .logo-icon svg { width: 28px; height: 28px; fill: #050508; }
+
+  .logo-text {
+    font-size: 2.2rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    background: linear-gradient(90deg, var(--accent), #a78bfa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .tagline {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--muted);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+
+  /* ─── Main card ─── */
+  .card {
+    width: 100%;
+    max-width: 720px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 2.5rem;
+    box-shadow: 0 0 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04);
+    animation: fadeUp 0.9s ease both 0.2s;
+  }
+
+  @keyframes fadeDown {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ─── Input area ─── */
+  .input-group {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .url-input-wrap {
+    flex: 1;
+    position: relative;
+  }
+
+  .url-input-wrap .prefix {
+    position: absolute;
+    left: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--muted);
+    pointer-events: none;
+    user-select: none;
+  }
+
+  #urlInput {
+    width: 100%;
+    padding: 0.9rem 1rem 0.9rem 4.2rem;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  #urlInput::placeholder { color: var(--muted); }
+  #urlInput:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(0,255,204,0.1);
+  }
+
+  .go-btn {
+    padding: 0.9rem 2rem;
+    background: linear-gradient(135deg, var(--accent), #00ccaa);
+    border: none;
+    border-radius: 12px;
+    color: #050508;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
+    white-space: nowrap;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .go-btn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.2), transparent);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .go-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(0,255,204,0.3); }
+  .go-btn:hover::after { opacity: 1; }
+  .go-btn:active { transform: translateY(0); }
+  .go-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+  /* ─── Options row ─── */
+  .options-row {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.5rem;
+  }
+
+  .toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+    cursor: pointer;
+    transition: color 0.2s;
+    user-select: none;
+  }
+  .toggle-label:hover { color: var(--text); }
+
+  .toggle-label input[type="checkbox"] {
+    appearance: none;
+    width: 32px;
+    height: 18px;
+    background: var(--border);
+    border-radius: 99px;
+    position: relative;
+    cursor: pointer;
+    transition: background 0.2s;
+    flex-shrink: 0;
+  }
+  .toggle-label input[type="checkbox"]::after {
+    content: '';
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background: var(--muted);
+    border-radius: 50%;
+    top: 3px;
+    left: 3px;
+    transition: left 0.2s, background 0.2s;
+  }
+  .toggle-label input[type="checkbox"]:checked { background: rgba(0,255,204,0.2); }
+  .toggle-label input[type="checkbox"]:checked::after { left: 17px; background: var(--accent); }
+
+  /* ─── Status bar ─── */
+  #statusBar {
+    display: none;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: rgba(0,255,204,0.05);
+    border: 1px solid rgba(0,255,204,0.15);
+    border-radius: 10px;
+    margin-bottom: 1.25rem;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.78rem;
+    color: var(--accent);
+    animation: fadeIn 0.3s ease;
+  }
+
+  #statusBar.error {
+    background: rgba(255,80,80,0.05);
+    border-color: rgba(255,80,80,0.2);
+    color: #ff8080;
+  }
+
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  .spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(0,255,204,0.2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ─── Quick sites ─── */
+  .quick-section {
+    border-top: 1px solid var(--border);
+    padding-top: 1.5rem;
+  }
+
+  .quick-label {
+    font-size: 0.72rem;
+    font-family: 'Space Mono', monospace;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 0.75rem;
+  }
+
+  .quick-sites {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .quick-site {
+    padding: 0.4rem 0.85rem;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 99px;
+    font-size: 0.78rem;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'Space Mono', monospace;
+  }
+  .quick-site:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(0,255,204,0.05);
+  }
+
+  /* ─── Stats row ─── */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-top: 2rem;
+    animation: fadeUp 1s ease both 0.5s;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.2rem;
+    text-align: center;
+  }
+
+  .stat-value {
+    font-family: 'Space Mono', monospace;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--accent);
+    display: block;
+  }
+
+  .stat-label {
+    font-size: 0.72rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-top: 0.3rem;
+    font-family: 'Space Mono', monospace;
+  }
+
+  /* ─── Footer ─── */
+  footer {
+    margin-top: 2rem;
+    text-align: center;
+    font-size: 0.75rem;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    animation: fadeUp 1s ease both 0.7s;
+  }
+
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+
+  /* ─── Responsive ─── */
+  @media (max-width: 600px) {
+    .card { padding: 1.5rem; }
+    .input-group { flex-direction: column; }
+    .stats { grid-template-columns: 1fr; }
+    .logo-text { font-size: 1.6rem; }
+  }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <header>
+    <div class="logo-mark">
+      <div class="logo-icon">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+        </svg>
+      </div>
+      <span class="logo-text">NexProxy</span>
+    </div>
+    <p class="tagline">// 高性能 Webプロキシ — どんなサイトも匿名でアクセス</p>
+  </header>
+
+  <div class="card">
+    <div class="input-group">
+      <div class="url-input-wrap">
+        <span class="prefix">URL://</span>
+        <input
+          type="text"
+          id="urlInput"
+          placeholder="example.com または https://..."
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          spellcheck="false"
+        />
+      </div>
+      <button class="go-btn" id="goBtn" onclick="handleGo()">アクセス →</button>
+    </div>
+
+    <div class="options-row">
+      <label class="toggle-label">
+        <input type="checkbox" id="optHttps" checked />
+        HTTPS 強制
+      </label>
+      <label class="toggle-label">
+        <input type="checkbox" id="optNewTab" />
+        新しいタブで開く
+      </label>
+      <label class="toggle-label">
+        <input type="checkbox" id="optCookies" checked />
+        Cookie 転送
+      </label>
+      <label class="toggle-label">
+        <input type="checkbox" id="optJs" checked />
+        JavaScript 許可
+      </label>
+    </div>
+
+    <div id="statusBar"></div>
+
+    <div class="quick-section">
+      <div class="quick-label">// クイックアクセス</div>
+      <div class="quick-sites" id="quickSites"></div>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat-card">
+      <span class="stat-value" id="statRequests">0</span>
+      <span class="stat-label">このセッションのリクエスト</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-value" id="statAvgTime">—</span>
+      <span class="stat-label">平均応答時間</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-value">TLS 1.3</span>
+      <span class="stat-label">暗号化プロトコル</span>
+    </div>
+  </div>
+
+  <footer>
+    <p>NexProxy v1.0 &mdash; Render にデプロイ &mdash; <a href="https://github.com" target="_blank">GitHub</a></p>
+    <p style="margin-top:0.4rem;font-size:0.68rem;">このサービスは個人利用を目的としています。利用規約を遵守してください。</p>
+  </footer>
+
+</div>
+
+<script>
+// Quick sites
+const QUICK = [
+  { label: 'Google', url: 'https://www.google.com' },
+  { label: 'Wikipedia', url: 'https://www.wikipedia.org' },
+  { label: 'GitHub', url: 'https://github.com' },
+  { label: 'Reddit', url: 'https://www.reddit.com' },
+  { label: 'YouTube', url: 'https://www.youtube.com' },
+  { label: 'Twitter/X', url: 'https://x.com' },
+  { label: 'BBC News', url: 'https://www.bbc.com/news' },
+  { label: 'Hacker News', url: 'https://news.ycombinator.com' },
+];
+
+const qc = document.getElementById('quickSites');
+QUICK.forEach(({ label, url }) => {
+  const btn = document.createElement('button');
+  btn.className = 'quick-site';
+  btn.textContent = label;
+  btn.onclick = () => { document.getElementById('urlInput').value = url; handleGo(); };
+  qc.appendChild(btn);
+});
+
+// Stats
+let requestCount = 0;
+let totalTime = 0;
+
+function updateStats(ms) {
+  requestCount++;
+  totalTime += ms;
+  document.getElementById('statRequests').textContent = requestCount;
+  document.getElementById('statAvgTime').textContent = Math.round(totalTime / requestCount) + 'ms';
+}
+
+// Status bar
+function setStatus(msg, isError = false, showSpinner = false) {
+  const bar = document.getElementById('statusBar');
+  bar.style.display = 'flex';
+  bar.className = isError ? 'error' : '';
+  bar.innerHTML = showSpinner
+    ? `<div class="spinner"></div><span>${msg}</span>`
+    : `<span>${msg}</span>`;
+}
+
+function hideStatus() {
+  document.getElementById('statusBar').style.display = 'none';
+}
+
+// Enter key support
+document.getElementById('urlInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') handleGo();
+});
+
+async function handleGo() {
+  let url = document.getElementById('urlInput').value.trim();
+  if (!url) return;
+
+  // Auto-prepend https if no protocol
+  if (!/^https?:\/\//i.test(url)) {
+    const forceHttps = document.getElementById('optHttps').checked;
+    url = (forceHttps ? 'https://' : 'http://') + url;
+  }
+
+  const btn = document.getElementById('goBtn');
+  btn.disabled = true;
+  setStatus(`接続中: ${url}`, false, true);
+
+  const t0 = Date.now();
+  const proxyUrl = `/proxy?url=${encodeURIComponent(url)}`;
+  const newTab = document.getElementById('optNewTab').checked;
+
+  try {
+    // Quick reachability check
+    const check = await fetch(`/api/check?url=${encodeURIComponent(url)}`).then(r => r.json()).catch(() => ({ ok: true }));
+
+    if (!check.ok && check.error) {
+      setStatus(`⚠ ${check.error}`, true);
+      btn.disabled = false;
+      return;
+    }
+
+    const elapsed = Date.now() - t0;
+    updateStats(elapsed);
+    setStatus(`✓ 接続成功 (${elapsed}ms) — リダイレクト中...`);
+
+    setTimeout(() => {
+      if (newTab) {
+        window.open(proxyUrl, '_blank');
+        hideStatus();
+      } else {
+        window.location.href = proxyUrl;
+      }
+      btn.disabled = false;
+    }, 300);
+
+  } catch (e) {
+    setStatus(`エラー: ${e.message}`, true);
+    btn.disabled = false;
+  }
+}
+</script>
+</body>
+</html>

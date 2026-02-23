@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: nexproxy
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        generateValue: false
+    healthCheckPath: /
+    autoDeploy: true
